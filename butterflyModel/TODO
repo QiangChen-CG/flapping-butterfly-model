@@ -1,0 +1,13 @@
+To-do:
+- Overall
+    - Unit tests?
+    - Port code calculating equivalent wing and building 3D model for
+    animations
+
+- buildButterfly.py
+    - Docstring
+    - Error handling: Call argument name in error messages for BodyPart and
+    Butterfly object initialization
+
+- convertmatfiles.py
+    - Update docstring to clarify what the .mat data is being turned into
