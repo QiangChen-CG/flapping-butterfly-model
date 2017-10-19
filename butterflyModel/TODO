@@ -1,13 +1,18 @@
 To-do:
 - Overall
+    - Move functions and modules around to create clean repository once
+    structure is more defined
     - Unit tests?
     - Port code calculating equivalent wing and building 3D model for
     animations
+    - Error handling -> pythonic way to handle errors and enforce proper
+    arguments?
+    - Once GUI -> enforce
 
 - buildButterfly.py
     - Docstring
-    - Error handling: Call argument name in error messages for BodyPart and
-    Butterfly object initialization
+    - Error handling: more pythonic way to implement parameter checks(e.g.
+    mass>0)?
 
 - convertmatfiles.py
     - Update docstring to clarify what the .mat data is being turned into

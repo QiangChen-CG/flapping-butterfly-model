@@ -13,7 +13,7 @@ import scipy.io
 
 
 def convert_mat_matrix(filename, matname):
-    """Convert a MATLAB .mat file(filename) containing a matrix(matname)
+    """Convert a MATLAB matrix(matname) contained in a .mat file(filename)
     into a numpy.ndarray
 
     filename = name of .mat file with path, e.g. 'matrixfiles/mymatrix.mat'
@@ -27,6 +27,7 @@ def convert_mat_matrix(filename, matname):
 
 class ButterflyData(object):
     def __init__(self):
+        pass
 
 
 wing_array = convert_mat_matrix('MATLAB_files/TreeNymphLeftWing.mat', 'Wing')
