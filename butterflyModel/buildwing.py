@@ -4,57 +4,43 @@ from scipy import interpolate
 import pickle
 import matplotlib.pyplot as plt
 
-bf_file = open('treeNymph.pkl', 'rb')
-bf = pickle.load(bf_file)
-wc = bf.wing.wingcoords
-
-n_ele = 25
 
 def interp_elements(x, y, n, axis=1, method='linear'):
     """Takes 1-D x array and N-D y arrays corresponding to points along the
     wing edge and divides the wing into n spanwise elements, returning
-    interpolated x and y values at the center of those elements.
-    Interpolation axis and method can be optionally specified, with axis=1
-    and method='cubic' being the defaults.
+    interpolated x and y values at the center of those elements, as well as
+    the width of the elements. Interpolation axis and method can be
+    optionally specified, with axis=1 and method='cubic' being the defaults.
     """
-    f = interpolate.interp1d(x,y, axis=axis, kind=method)
+    f = interpolate.interp1d(x, y, axis=axis, kind=method)
 
-    w_ele = (x[-1] - x[0]) / n # width of each element
+    w_ele = (x[-1] - x[0]) / n  # width of each element
     # x points at center of elements
     x_ele = np.linspace((x[0] + w_ele / 2),
                         (x[-1] - w_ele / 2),
                         n)
     y_ele = f(x_ele)
 
-    return x_ele, y_ele
+    return x_ele, y_ele, w_ele
 
 
-fy_le = interpolate.interp1d(wc['x'], wc['y_le'])#), kind='cubic')
-fy_te = interpolate.interp1d(wc['x'], wc['y_te'])#, kind='cubic')
-#
-w_ele = (wc['x'][-1] - wc['x'][0]) / n_ele
-xmids = np.linspace((wc['x'][0] + w_ele / 2),
-                    (wc['x'][-1] - w_ele / 2),
-                    n_ele)
-
-x_mids, [yi_le, yi_te] = interp_elements(wc['x'], [wc['y_le'], wc['y_te']], 25)
+def get_chord_length(y_le, y_te):
+    """Takes y_le, y_te arrays representing the y values of points along the
+    leading edge and trailing edge of a wing and calculates the chord length
+    at those positions by subtracting the trailing edge y-values from the
+    leading edge y-values.
+    """
+    return y_le - y_te
 
 
-# FUNCTION FOR centers, chord25, chord75 HERE (reusable function??)
-
-# chord = fy_le(xmids) - fy_te(xmids)
-chord = yi_le - yi_te
-centers = yi_le - 0.5 * chord
-chord_25 = yi_le - 0.25 * chord
-chord_75 = yi_le - 0.75 * chord
-
-# centroid
-# x_bar = np.divide(np.sum(np.multiply(xmids, chord)),
-#                   np.sum(chord))
-# y_bar = np.divide(np.sum(np.multiply(centers, chord)),
-#                   np.sum(chord))
-
-# print(x_bar, y_bar)
+def get_chord_pos(y_le, y_te, chord_pos):
+    """Takes y_le, y_te arrays representing the y values of points along the
+    leading edge and trailing edge of a wing and finds the points that are
+    chord_pos*chord_length back from the leading edge.  Using for
+    calculating the aerodynamic center and center of mass of wing elements
+    """
+    chord_length = y_le - y_te
+    return y_le - chord_pos * chord_length
 
 
 def find_centroid(points, weight=None):
@@ -74,16 +60,29 @@ def find_centroid(points, weight=None):
     return centroid
 
 
-wing_centroid = find_centroid(np.stack((xmids, centers)), chord)
+bf_file = open('treeNymph.pkl', 'rb')
+bf = pickle.load(bf_file)
+wc = bf.wing.wingcoords
 
+n_ele = 20
+
+x_mids, [yi_le, yi_te], w_ele = interp_elements(wc['x'], [wc['y_le'],
+                                                          wc['y_te']], 25)
+
+chord = get_chord_length(yi_le, yi_te)
+centers = get_chord_pos(yi_le, yi_te, 0.5)
+chord_25 = get_chord_pos(yi_le, yi_te, 0.25)
+chord_75 = get_chord_pos(yi_le, yi_te, 0.75)
+
+wing_centroid = find_centroid(np.stack((x_mids, centers)), chord)
 
 plt.close('all')
 plt.plot(wc['x'], wc['y_le'])
 plt.plot(wc['x'], wc['y_te'])
-plt.plot(xmids, fy_le(xmids), 'go')
-plt.plot(xmids, fy_te(xmids), 'go')
-plt.plot(xmids, centers, 'ro')
-plt.plot(xmids, chord_25, 'bo')
-plt.plot(xmids, chord_75, 'bo')
+plt.plot(x_mids, yi_le, 'go')
+plt.plot(x_mids, yi_te, 'go')
+plt.plot(x_mids, centers, 'ro')
+plt.plot(x_mids, chord_25, 'bo')
+plt.plot(x_mids, chord_75, 'bo')
 plt.plot(wing_centroid[0], wing_centroid[1], 'kv')
 plt.show()

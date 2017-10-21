@@ -10,8 +10,14 @@ To-do:
     - Once GUI -> enforce variable values -> with GUI or within classes?
         - Within classes would be more modular I think
     - Creation of Butterfly object with initial data is hacked together.  Flesh
-     out later, for now just create to test
+     out later, for now just create to test.  Should x, y_le, y_te be in a dict
+      or array?
      - Subfolder for data files(e.g. treeNymph.pkl)
+     - Make note that wing building functions refer to the span axis as the
+     x-axis and the chord axis as the y-axis(to prevent confusion), where in
+     the butterfly body coordinate system, the two are switched.
+        - NOTED, but update when you decide how to transform back into body
+        system
 
 - buildButterfly.py
     - Docstring

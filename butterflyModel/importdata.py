@@ -29,6 +29,7 @@ def convert_mat_matrix(filename, matname):
 
 wing_array = convert_mat_matrix('MATLAB_files/TreeNymphLeftWing.mat', 'Wing')
 wing_array = wing_array.transpose()
+wing_array = wing_array / 1000  # Convert units from mm to meter
 wing_coords = {
     'x': wing_array[0],
     'y_le': wing_array[1],
