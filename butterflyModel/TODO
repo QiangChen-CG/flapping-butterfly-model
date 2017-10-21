@@ -7,7 +7,11 @@ To-do:
     animations
     - Error handling -> pythonic way to handle errors and enforce proper
     arguments?
-    - Once GUI -> enforce
+    - Once GUI -> enforce variable values -> with GUI or within classes?
+        - Within classes would be more modular I think
+    - Creation of Butterfly object with initial data is hacked together.  Flesh
+     out later, for now just create to test
+     - Subfolder for data files(e.g. treeNymph.pkl)
 
 - buildButterfly.py
     - Docstring

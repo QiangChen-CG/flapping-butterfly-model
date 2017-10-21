@@ -10,6 +10,8 @@ Imports and collects data into a ButterflyData object, to be saved
 
 """
 import scipy.io
+import buildbutterfly
+import pickle
 
 
 def convert_mat_matrix(filename, matname):
@@ -25,9 +27,20 @@ def convert_mat_matrix(filename, matname):
     return matrix
 
 
-class ButterflyData(object):
-    def __init__(self):
-        pass
-
-
 wing_array = convert_mat_matrix('MATLAB_files/TreeNymphLeftWing.mat', 'Wing')
+wing_array = wing_array.transpose()
+wing_coords = {
+    'x': wing_array[0],
+    'y_le': wing_array[1],
+    'y_te': wing_array[2]
+}
+treeNymphHead = buildbutterfly.BodyPart(0.02, 0.006, 0.006)
+treeNymphThorax = buildbutterfly.BodyPart(0.1808, 0.01, 0.006)
+treeNymphAbdomen = buildbutterfly.BodyPart(0.2404, 0.0289, 0.006)
+treeNymphWing = buildbutterfly.Wing(wing_coords, 0.0587)
+treeNymph = buildbutterfly.Butterfly(treeNymphHead, treeNymphThorax,
+                                     treeNymphAbdomen, treeNymphWing)
+
+
+output = open('treeNymph.pkl', 'wb')
+pickle.dump(treeNymph, output, pickle.HIGHEST_PROTOCOL)

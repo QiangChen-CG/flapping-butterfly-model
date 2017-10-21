@@ -1,33 +1,38 @@
-"""Converts data from MATLAB .mat files into usable python data.
+"""
 
-This function extracts data in MATLAB's .mat file format and converts it
-into usable python data(XXX EXPAND HERE - NUMPY ARRAY? ETC ETC)
+DOCSTRING HERE
 
 """
 
 
 class BodyPart(object):
     """Define a body part with a mass, length, and radius properties.  All
+    body parts are modeled as spheroids of uniform density.
 
-    Body parts are modeled as spheroids of uniform density.
-
-    mass = mass of the body part in grams(g)
-    length = length of the body part in meters(m)
-    radius = radius of the body part in meters(m)
+    mass = mass of the body part in grams(g), must be positive
+    length = length of the body part in meters(m), cannot be negative
+    radius = radius of the body part in meters(m), cannot be negative
     """
+
     def __init__(self, mass, length, radius):
         self.mass = mass  # grams
         self.length = length  # meters
         self.radius = radius  # meters
 
-        # Check for negative property values and raise ValueError if found
-        if not all(i >= 0 for i in [mass, length, radius]):
-            raise ValueError("All property values must be positive or zero")
+        # More pythonic way to implement these errors?
+        if not (mass > 0):
+            raise ValueError("mass must be positive")
+        if length < 0:
+            raise ValueError("length cannot be negative")
+        if radius < 0:
+            raise ValueError("radius cannot be negative")
 
 
 class Wing(object):
-    def __init__(self):
-        pass
+    """DOCSTRING - change inputs to 3 1-D arrays, create dict in constructor"""
+    def __init__(self, wingcoords, mass):
+        self.wingcoords = wingcoords # x, y_le, y_te coords
+        self.mass = mass # grams
 
 
 class Butterfly(object):
@@ -37,20 +42,6 @@ class Butterfly(object):
         self.abdomen = abdomen  # BodyPart class
         self.wing = wing  # Wing class
 
-        if not all(type(i) is BodyPart for i in [head, thorax, abdomen]):
-            raise TypeError("head, thorax, and abdomen must all be BodyPart "
-                            "objects")
-        if type(wing) is not Wing:
-            raise TypeError("wing must be a Wing object")
 
+# TEST CODE, DELETE LATER
 
-treeNymphHead = BodyPart(0.02, 0.006, 0.006)
-treeNymphThorax = BodyPart(0.1808, 0.01, 0.006)
-treeNymphAbdomen = BodyPart(0.2404, 0.0289, 0.006)
-treeNymphWing = Wing()
-treeNymph = Butterfly(treeNymphHead, treeNymphThorax, treeNymphAbdomen,
-                      treeNymphWing)
-
-# TEST PRINTS - DELETE LATER
-print(treeNymph.thorax.mass)
-print("")
