@@ -35,10 +35,10 @@ wing_coords = {
     'y_le': wing_array[1],
     'y_te': wing_array[2]
 }
-treeNymphHead = buildbutterfly.BodyPart(0.02, 0.006, 0.006)
-treeNymphThorax = buildbutterfly.BodyPart(0.1808, 0.01, 0.006)
-treeNymphAbdomen = buildbutterfly.BodyPart(0.2404, 0.0289, 0.006)
-treeNymphWing = buildbutterfly.Wing(wing_coords, 0.0587)
+treeNymphHead = buildbutterfly.BodySphere(0.02, 0.006)
+treeNymphThorax = buildbutterfly.BodyEllipse(0.1808, 0.01, 0.006, 10)
+treeNymphAbdomen = buildbutterfly.BodyEllipse(0.2404, 0.0289, 0.006, 10)
+treeNymphWing = buildbutterfly.Wing(wing_coords, 0.0587, 25)
 treeNymph = buildbutterfly.Butterfly(treeNymphHead, treeNymphThorax,
                                      treeNymphAbdomen, treeNymphWing)
 
