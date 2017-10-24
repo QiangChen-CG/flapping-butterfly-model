@@ -9,6 +9,7 @@ elsewhere in this project
 Imports and collects data into a ButterflyData object, to be saved
 
 """
+import numpy as np
 import scipy.io
 import buildbutterfly
 import pickle
@@ -35,13 +36,21 @@ wing_coords = {
     'y_le': wing_array[1],
     'y_te': wing_array[2]
 }
-treeNymphHead = buildbutterfly.BodySphere(0.02, 0.006)
-treeNymphThorax = buildbutterfly.BodyEllipse(0.1808, 0.01, 0.006, 10)
-treeNymphAbdomen = buildbutterfly.BodyEllipse(0.2404, 0.0289, 0.006, 10)
-treeNymphWing = buildbutterfly.Wing(wing_coords, 0.0587, 25)
-treeNymph = buildbutterfly.Butterfly(treeNymphHead, treeNymphThorax,
-                                     treeNymphAbdomen, treeNymphWing)
+# treeNymphHead = buildbutterfly.BodySphere(0.02, 0.006)
+# treeNymphThorax = buildbutterfly.BodyEllipse(0.1808, 0.01, 0.006, 10)
+# treeNymphAbdomen = buildbutterfly.BodyEllipse(0.2404, 0.0289, 0.006, 10)
+# treeNymphWing = buildbutterfly.Wing(wing_coords, 0.0587, 25)
+# treeNymph = buildbutterfly.Butterfly(treeNymphHead, treeNymphThorax,
+#                                      treeNymphAbdomen, treeNymphWing)
+#
+#
+# output = open('treeNymph.pkl', 'wb')
+# pickle.dump(treeNymph, output, pickle.HIGHEST_PROTOCOL)
+
+print(wing_array[0])
+
+wing_array = np.around(wing_array, 10)
+myList = ', '.join(map(str, wing_array[2]))
 
 
-output = open('treeNymph.pkl', 'wb')
-pickle.dump(treeNymph, output, pickle.HIGHEST_PROTOCOL)
+print('[' + myList + ']')

@@ -5,6 +5,65 @@ DOCSTRING HERE
 """
 import numpy as np
 from scipy import interpolate
+from types import SimpleNamespace
+import settings
+
+
+def main():
+    """DOCSTRING HERE"""
+    #Create butterfly object
+    bf = build_butterfly()
+
+    # Create angle sinusoidal functions
+    fea = Sinusoid(settings.FEA_AMP,
+                   settings.FEA_MEAN,
+                   settings.FEA_PHA,
+                   settings.FREQUENCY)
+    swe = Sinusoid(settings.SWE_AMP,
+                   settings.SWE_MEAN,
+                   settings.SWE_PHA,
+                   settings.FREQUENCY)
+    fea = Sinusoid(settings.FEA_AMP,
+                   settings.FEA_MEAN,
+                   settings.FEA_PHA,
+                   settings.FREQUENCY)
+
+
+def build_butterfly():
+    bf = Butterfly(settings.BODY_FRAME_UNIT_VECS)
+    head = BodySphere(settings.HEAD_MASS,
+                      settings.HEAD_DIAMETER)
+    thorax = BodyEllipse(settings.THORAX_MASS,
+                         settings.THORAX_LENGTH,
+                         settings.THORAX_DIAMETER,
+                         settings.THORAX_ELEMENTS)
+    abdomen = BodyEllipse(settings.ABDOMEN_MASS,
+                          settings.ABDOMEN_LENGTH,
+                          settings.ABDOMEN_DIAMETER,
+                          settings.ABDOMEN_ELEMENTS)
+    wing = Wing(settings.WING_MASS,
+                settings.WING_X,
+                settings.WING_Y_LE,
+                settings.WING_Y_TE,
+                settings.WING_ELEMENTS)
+
+    bf.add_body_part('head',
+                     head,
+                     settings.HEAD_ROOT,
+                     settings.HEAD_UNIT_VECS)
+    bf.add_body_part('thorax',
+                     thorax,
+                     settings.THORAX_ROOT,
+                     settings.THORAX_UNIT_VECS)
+    bf.add_body_part('abdomen',
+                     abdomen,
+                     settings.ABDOMEN_ROOT,
+                     settings.ABDOMEN_UNIT_VECS)
+    bf.add_body_part('wing',
+                     wing,
+                     settings.WING_ROOT,
+                     settings.WING_UNIT_VECS)
+    return bf
 
 
 def create_3d_array(x_pts, y_pts, z_pts=None):
@@ -12,6 +71,64 @@ def create_3d_array(x_pts, y_pts, z_pts=None):
         z_pts = np.zeros(len(x_pts))
 
     return np.stack((x_pts, y_pts, z_pts), axis=1)
+
+
+class Butterfly(object):
+    def __init__(self, body_unit_vecs):
+        self.unit_vecs = body_unit_vecs
+        self.body = SimpleNamespace()  # Create empty object
+        self.root = SimpleNamespace()
+        self.quat = SimpleNamespace()
+
+    def add_body_part(self, name, body_part, root, part_unit_vecs):
+        """Adds body part at specified location"""
+        setattr(self.body, name, body_part)
+        setattr(self.root, name, root)
+        setattr(self.quat, name, self.get_quaternion(self.unit_vecs,
+                                                     part_unit_vecs))
+
+    @staticmethod
+    def get_quaternion(lst1, lst2, matchlist=None):
+        """Find quaternion between two coordinate systems EXPAND HERE
+
+        Taken from here(cleaned up a bit):
+        https://stackoverflow.com/a/23760608/8774464
+
+        Which is a Python implementation from an algorithm in:
+        Paul J. Besl and Neil D. McKay "Method for registration of 3-D
+        shapes", Sensor Fusion IV: Control Paradigms and Data Structures,
+        586 (April 30, 1992); http://dx.doi.org/10.1117/12.57955
+        """
+        if not matchlist:
+            matchlist = range(len(lst1))
+        m = np.matrix([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
+
+        for i, coord1 in enumerate(lst1):
+            x = np.matrix(np.outer(coord1, lst2[matchlist[i]]))
+            m = m + x
+
+        n11 = float(m[0][:, 0] + m[1][:, 1] + m[2][:, 2])
+        n22 = float(m[0][:, 0] - m[1][:, 1] - m[2][:, 2])
+        n33 = float(-m[0][:, 0] + m[1][:, 1] - m[2][:, 2])
+        n44 = float(-m[0][:, 0] - m[1][:, 1] + m[2][:, 2])
+        n12 = float(m[1][:, 2] - m[2][:, 1])
+        n13 = float(m[2][:, 0] - m[0][:, 2])
+        n14 = float(m[0][:, 1] - m[1][:, 0])
+        n23 = float(m[0][:, 1] + m[1][:, 0])
+        n24 = float(m[2][:, 0] + m[0][:, 2])
+        n34 = float(m[1][:, 2] + m[2][:, 1])
+
+        n = np.matrix([[n11, n12, n13, n14],
+                       [n12, n22, n23, n24],
+                       [n13, n23, n33, n34],
+                       [n14, n24, n34, n44]])
+
+        values, vectors = np.linalg.eig(n)
+        w = list(values)
+        mw = max(w)
+        quat = vectors[:, w.index(mw)]
+        quat = np.array(quat).reshape(-1, ).tolist()
+        return quat
 
 
 class BodyEllipse(object):
@@ -123,7 +240,7 @@ class Wing(object):
 
     Attributes:
         mass: Mass of the wing.
-        y_ele: Spanwise location of element centerpoints.
+        x_ele: Spanwise location of element centerpoints.
         ele_width: Width of each individual element.
         chord_length: Chord length(distance from leading to trailing edge) of
         each element.
@@ -144,17 +261,20 @@ class Wing(object):
 
     """
 
-    def __init__(self, raw_wing_coords, mass, n_elements):
+    def __init__(self, mass, x, y_le, y_te, n_elements):
         """Creates the initial wing object with input wing coordinates,
         mass and number of elements.  Divides the wing into n elements of
         equal length along the wingspan, then calculates properties of those
         elements needed in the model.
 
         Args:
-            raw_wing_coords (dict): Contains 'x', 'y_le', 'y_te' entries
-            containing arrays representing the x,y coordinates of points
-            along the leading edge and trailing edge of the wing.
             mass: Mass of the wing in grams(g).
+            x: x-coordinates of points along the leading edge and trailing
+            edge of the wing
+            y_le: y-coordinates of points along the leading edge
+            corresponding with 'x'
+            y_te: y-coordinates of points along the trailing edge
+            corresponding with 'x'
             n_elements: Number of elements to divide the wing into.
 
         NOTE: Because the wing point coordinate data is in the y = f(x)
@@ -169,36 +289,36 @@ class Wing(object):
 
         # Generate y-coordinates of the element centers and x-coordinates of
         #  the leading and trailing edges of those elements
-        self.y_ele, [self.x_le, self.x_te], self.ele_width = \
-            self.interp_elements(raw_wing_coords['x'],
-                                 [raw_wing_coords['y_le'],
-                                  raw_wing_coords['y_te']],
+        self.x_ele, [self.y_le, self.y_te], self.ele_width = \
+            self.interp_elements(x,
+                                 [y_le,
+                                  y_te],
                                  n_elements)
 
         # Generate chord lengths of each element
-        self.chord_length = self.get_chord_length(self.x_le, self.x_te)
+        self.chord_length = self.get_chord_length(self.y_le, self.y_te)
 
         # Find centers of elements then get centroid for center of mass
-        self.midchord = self.get_chord_pos(self.x_le, self.x_te, 0.5)
-        self.centroid = self.find_centroid(np.stack((self.y_ele,
+        self.midchord = self.get_chord_pos(self.y_le, self.y_te, 0.5)
+        self.centroid = self.find_centroid(np.stack((self.x_ele,
                                                      self.midchord)),
                                            self.chord_length)
 
         # Generate y-coordinates for the 25% chordline and 75% chordline
-        self.chord25 = self.get_chord_pos(self.x_le, self.x_te, 0.25)
-        self.chord75 = self.get_chord_pos(self.x_le, self.x_te, 0.75)
+        self.chord25 = self.get_chord_pos(self.y_le, self.y_te, 0.25)
+        self.chord75 = self.get_chord_pos(self.y_le, self.y_te, 0.75)
 
         # Generate moment of inertia tensor of the entire wing
-        self.moi = self.get_moi(self.y_ele, self.midchord, self.ele_width,
+        self.moi = self.get_moi(self.x_ele, self.midchord, self.ele_width,
                                 self.chord_length, mass)
 
         # Convert x and y data in N-by-3 arrays in the wing frame
-        self.leading_edge = create_3d_array(self.x_le, self.y_ele)
-        self.trailing_edge = create_3d_array(self.x_te, self.y_ele)
-        self.midchord = create_3d_array(self.midchord, self.y_ele)
-        self.centroid = create_3d_array([self.centroid[1]], [self.centroid[0]])
-        self.chord25 = create_3d_array(self.chord25, self.y_ele)
-        self.chord75 = create_3d_array(self.chord75, self.y_ele)
+        self.leading_edge = create_3d_array(self.x_ele, self.y_le)
+        self.trailing_edge = create_3d_array(self.x_ele, self.y_te)
+        self.midchord = create_3d_array(self.x_ele, self.midchord)
+        self.centroid = create_3d_array([self.centroid[0]], [self.centroid[1]])
+        self.chord25 = create_3d_array(self.x_ele, self.chord25)
+        self.chord75 = create_3d_array(self.x_ele, self.chord75)
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -292,11 +412,42 @@ class Wing(object):
         return tensor_moi
 
 
-class Butterfly(object):
-    def __init__(self, head, thorax, abdomen, wing):
-        self.head = head  # BodyPart class
-        self.thorax = thorax  # BodyPart class
-        self.abdomen = abdomen  # BodyPart class
-        self.wing = wing  # Wing class
+class Sinusoid(object):
+    """Define a sinusoid with an amplitude, mean, phase,
+    and frequency.  Has methods evaluate the function at a given time 't',
+    as well as the first and second derivatives of the function
+    """
 
-# TEST CODE, DELETE LATER
+    def __init__(self, amp, mean, phase, freq):
+        """Define parameters of sinusoid.
+
+        :param amp: Amplitude
+        :param mean: Mean
+        :param phase: Phase(radians)
+        :param freq: Frequency(Hz)
+        """
+        self.amp = amp
+        self.mean = mean
+        self.phase = phase
+        self.freq = freq
+        self.omega = 2 * np.pi * freq
+
+    def a(self, t):
+        """Evaluates the function at time 't'"""
+        a = self.amp * np.sin(self.omega * t + self.phase) + self.mean
+        return a
+
+    def da_dt(self, t):
+        """Evaluates the first derivative of the function at time 't'"""
+        da_dt = self.amp * self.omega * np.cos(self.omega * t + self.phase)
+        return da_dt
+
+    def d2a_dt2(self, t):
+        """Evaluates the second derivative of the function at time 't'"""
+        d2a_dt2 = -self.amp * self.omega ** 2 * np.sin(self.omega * t +
+                                                       self.phase)
+        return d2a_dt2
+
+
+if __name__ == '__main__':
+    main()

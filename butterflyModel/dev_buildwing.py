@@ -97,6 +97,8 @@ def get_moi(y_ele, x_ele, w_ele, chords, mass):
 bf_file = open('treeNymph.pkl', 'rb')
 bf = pickle.load(bf_file)
 
+print(bf)
+
 print(bf.wing.trailing_edge[4][1])
 
 def gen3dplot(axobj, pts):
