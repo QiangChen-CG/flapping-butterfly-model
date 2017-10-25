@@ -4,9 +4,10 @@ DOCSTRING HERE
 
 """
 import numpy as np
+import pyquaternion as pq
 from scipy import interpolate
-from types import SimpleNamespace
 import settings
+from types import SimpleNamespace
 
 
 def main():
@@ -23,10 +24,17 @@ def main():
                    settings.SWE_MEAN,
                    settings.SWE_PHA,
                    settings.FREQUENCY)
-    fea = Sinusoid(settings.FEA_AMP,
+    fla = Sinusoid(settings.FEA_AMP,
                    settings.FEA_MEAN,
                    settings.FEA_PHA,
                    settings.FREQUENCY)
+
+    # TESTING
+    print(bf.quat.wing)
+    v = np.array([-3, -1.5, 1])
+    print(quat_rotate(bf.quat.wing, v))
+    print(quat_rotate(bf.quat.wing, quat_rotate(bf.quat.wing, v),
+                      inverse=True))
 
 
 def build_butterfly():
@@ -71,6 +79,15 @@ def create_3d_array(x_pts, y_pts, z_pts=None):
         z_pts = np.zeros(len(x_pts))
 
     return np.stack((x_pts, y_pts, z_pts), axis=1)
+
+
+def quat_rotate(q, v, inverse=False):
+    """Rotate vector 'v' by quaternion 'q'.  If inverse=True, Rotate by the
+    quaternion inverse(opposite rotation)."""
+    if inverse:
+        return q.inverse.rotate(v)
+    else:
+        return q.rotate(v)
 
 
 class Butterfly(object):
@@ -127,8 +144,8 @@ class Butterfly(object):
         w = list(values)
         mw = max(w)
         quat = vectors[:, w.index(mw)]
-        quat = np.array(quat).reshape(-1, ).tolist()
-        return quat
+        quat = np.array(quat).reshape(-1, )
+        return pq.Quaternion(quat)
 
 
 class BodyEllipse(object):
