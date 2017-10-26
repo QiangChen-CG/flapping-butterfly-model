@@ -35,6 +35,8 @@ def main():
     print(quat_rotate(bf.quat.wing, v))
     print(quat_rotate(bf.quat.wing, quat_rotate(bf.quat.wing, v),
                       inverse=True))
+    return bf
+    # END TESTING
 
 
 def build_butterfly():
@@ -75,6 +77,7 @@ def build_butterfly():
 
 
 def create_3d_array(x_pts, y_pts, z_pts=None):
+    """DOCSTRING"""
     if z_pts is None:
         z_pts = np.zeros(len(x_pts))
 
@@ -88,6 +91,30 @@ def quat_rotate(q, v, inverse=False):
         return q.inverse.rotate(v)
     else:
         return q.rotate(v)
+
+
+def get_q_total(q_fla, q_swe, theta_fea, wing_axis):
+    """Returns resultant quaternion of 3 rotation quaternions.  First gets
+    the resultant quaternion of q_swe*q_fla and rotates the wing axis by
+    that quaternion.  Then gets q_fea, which is a rotation about the wing
+    axis(which is why q_swe*q_fla needs to be calculated first).  The gets
+    resultant quaternion q_fea*q_swe*q_fla.
+    """
+    q_swe_fla = q_swe.__mul__(q_fla)
+    wa_rot = q_swe_fla.rotate(wing_axis)
+    q_fea = pq.Quaternion(axis=wa_rot, angle=theta_fea)
+    return q_fea.__mul__(q_swe_fla)
+
+
+def rotate_vectors(q, vec):
+    """Rotate 3D vectors by quaternion 'q'.  'vec' should be an N-by-3 numpy
+    array, where N is the number of vectors to rotate.  Returns an array of
+    the same size as 'vec', with each vector rotated by 'q'
+    """
+    rot_vec = np.empty(np.shape(vec))
+    for i in np.shape(vec.shape[0]):
+        rot_vec[i] = q.rotate(vec[i])
+    return rot_vec
 
 
 class Butterfly(object):
@@ -427,6 +454,8 @@ class Wing(object):
                                 (m * (d_zz ** 2))
 
         return tensor_moi
+
+    # def rotate(self, fla, swe, fea, ):
 
 
 class Sinusoid(object):

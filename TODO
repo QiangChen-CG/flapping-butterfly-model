@@ -13,16 +13,13 @@ To-do:
      out later, for now just create to test.  Should x, y_le, y_te be in a dict
       or array?
      - Subfolder for data files(e.g. treeNymph.pkl)
-     - Adjust Wing class functions and outputs so that the wing coordinate
-     system matches the body coordinate system when wing angles are zero(x
-     forward, y pointing down span of wing)
-        - NOTED, but update when you decide how to transform back into body
-        system
      - In documentation, ensure coordinates used(x, y, etc) are clearly
      defined/explained, as they change between frames.
      -Centroid or center-of-mass?
      -Currently one wing with symmetry - perhaps make 'symmetry' some sort of
      input so can easily switch later?
+     -What should be a static method and what should be a function defined
+     outside class?
 
 - buildButterfly.py
     - Docstring
