@@ -20,6 +20,8 @@ To-do:
      input so can easily switch later?
      -What should be a static method and what should be a function defined
      outside class?
+     - Wing angles -> correction rotate? (Negative vs. positive for some
+     angles?)
 
 - buildButterfly.py
     - Docstring

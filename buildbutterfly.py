@@ -76,12 +76,13 @@ def build_butterfly():
     return bf
 
 
-def create_3d_array(x_pts, y_pts, z_pts=None):
-    """DOCSTRING"""
+def create_3d_points(x_pts, y_pts, z_pts=None):
+    """Given arrays of x, y, and (optionally) z coordinates, return a
+    list of arrays as 3D coordinates."""
     if z_pts is None:
         z_pts = np.zeros(len(x_pts))
 
-    return np.stack((x_pts, y_pts, z_pts), axis=1)
+    return list(np.stack((x_pts, y_pts, z_pts), axis=1))
 
 
 def quat_rotate(q, v, inverse=False):
@@ -111,9 +112,9 @@ def rotate_vectors(q, vec):
     array, where N is the number of vectors to rotate.  Returns an array of
     the same size as 'vec', with each vector rotated by 'q'
     """
-    rot_vec = np.empty(np.shape(vec))
-    for i in np.shape(vec.shape[0]):
-        rot_vec[i] = q.rotate(vec[i])
+    rot_vec = []
+    for i, v in enumerate(vec):
+        rot_vec.append(q.rotate(v))
     return rot_vec
 
 
@@ -357,12 +358,13 @@ class Wing(object):
                                 self.chord_length, mass)
 
         # Convert x and y data in N-by-3 arrays in the wing frame
-        self.leading_edge = create_3d_array(self.x_ele, self.y_le)
-        self.trailing_edge = create_3d_array(self.x_ele, self.y_te)
-        self.midchord = create_3d_array(self.x_ele, self.midchord)
-        self.centroid = create_3d_array([self.centroid[0]], [self.centroid[1]])
-        self.chord25 = create_3d_array(self.x_ele, self.chord25)
-        self.chord75 = create_3d_array(self.x_ele, self.chord75)
+        self.leading_edge = create_3d_points(self.x_ele, self.y_le)
+        self.trailing_edge = create_3d_points(self.x_ele, self.y_te)
+        self.midchord = create_3d_points(self.x_ele, self.midchord)
+        self.centroid = create_3d_points([self.centroid[0]],
+                                         [self.centroid[1]])
+        self.chord25 = create_3d_points(self.x_ele, self.chord25)
+        self.chord75 = create_3d_points(self.x_ele, self.chord75)
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -454,8 +456,6 @@ class Wing(object):
                                 (m * (d_zz ** 2))
 
         return tensor_moi
-
-    # def rotate(self, fla, swe, fea, ):
 
 
 class Sinusoid(object):
