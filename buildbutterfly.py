@@ -12,31 +12,22 @@ from types import SimpleNamespace
 
 def main():
     """DOCSTRING HERE"""
-    #Create butterfly object
+    # Create butterfly object
     bf = build_butterfly()
 
     # Create angle sinusoidal functions
-    fea = Sinusoid(settings.FEA_AMP,
-                   settings.FEA_MEAN,
-                   settings.FEA_PHA,
-                   settings.FREQUENCY)
-    swe = Sinusoid(settings.SWE_AMP,
-                   settings.SWE_MEAN,
-                   settings.SWE_PHA,
-                   settings.FREQUENCY)
-    fla = Sinusoid(settings.FEA_AMP,
-                   settings.FEA_MEAN,
-                   settings.FEA_PHA,
-                   settings.FREQUENCY)
-
-    # TESTING
-    print(bf.quat.wing)
-    v = np.array([-3, -1.5, 1])
-    print(quat_rotate(bf.quat.wing, v))
-    print(quat_rotate(bf.quat.wing, quat_rotate(bf.quat.wing, v),
-                      inverse=True))
-    return bf
-    # END TESTING
+    bf.body.wing.flap = Sinusoid(settings.FLA_AMP,
+                                 settings.FLA_MEAN,
+                                 settings.FLA_PHA,
+                                 settings.FREQUENCY)
+    bf.body.wing.sweep = Sinusoid(settings.SWE_AMP,
+                                  settings.SWE_MEAN,
+                                  settings.SWE_PHA,
+                                  settings.FREQUENCY)
+    bf.body.wing.feath = Sinusoid(settings.FEA_AMP,
+                                  settings.FEA_MEAN,
+                                  settings.FEA_PHA,
+                                  settings.FREQUENCY)
 
 
 def build_butterfly():
@@ -52,9 +43,8 @@ def build_butterfly():
                           settings.ABDOMEN_DIAMETER,
                           settings.ABDOMEN_ELEMENTS)
     wing = Wing(settings.WING_MASS,
-                settings.WING_X,
-                settings.WING_Y_LE,
-                settings.WING_Y_TE,
+                settings.WING_PTS,
+                settings.WING_AXES,
                 settings.WING_ELEMENTS)
 
     bf.add_body_part('head',
@@ -73,6 +63,20 @@ def build_butterfly():
                      wing,
                      settings.WING_ROOT,
                      settings.WING_UNIT_VECS)
+
+    bf.body.wing.flap = Sinusoid(settings.FLA_AMP,
+                                 settings.FLA_MEAN,
+                                 settings.FLA_PHA,
+                                 settings.FREQUENCY)
+    bf.body.wing.sweep = Sinusoid(settings.SWE_AMP,
+                                  settings.SWE_MEAN,
+                                  settings.SWE_PHA,
+                                  settings.FREQUENCY)
+    bf.body.wing.feath = Sinusoid(settings.FEA_AMP,
+                                  settings.FEA_MEAN,
+                                  settings.FEA_PHA,
+                                  settings.FREQUENCY)
+
     return bf
 
 
@@ -92,19 +96,6 @@ def quat_rotate(q, v, inverse=False):
         return q.inverse.rotate(v)
     else:
         return q.rotate(v)
-
-
-def get_q_total(q_fla, q_swe, theta_fea, wing_axis):
-    """Returns resultant quaternion of 3 rotation quaternions.  First gets
-    the resultant quaternion of q_swe*q_fla and rotates the wing axis by
-    that quaternion.  Then gets q_fea, which is a rotation about the wing
-    axis(which is why q_swe*q_fla needs to be calculated first).  The gets
-    resultant quaternion q_fea*q_swe*q_fla.
-    """
-    q_swe_fla = q_swe.__mul__(q_fla)
-    wa_rot = q_swe_fla.rotate(wing_axis)
-    q_fea = pq.Quaternion(axis=wa_rot, angle=theta_fea)
-    return q_fea.__mul__(q_swe_fla)
 
 
 def rotate_vectors(q, vec):
@@ -306,16 +297,17 @@ class Wing(object):
 
     """
 
-    def __init__(self, mass, x, y_le, y_te, n_elements):
+    def __init__(self, mass, wing_pts, wing_axes, n_elements):
         """Creates the initial wing object with input wing coordinates,
         mass and number of elements.  Divides the wing into n elements of
         equal length along the wingspan, then calculates properties of those
         elements needed in the model.
 
-        Args:
+        Args: XXX FINISH THIS XXX
             mass: Mass of the wing in grams(g).
-            x: x-coordinates of points along the leading edge and trailing
-            edge of the wing
+            wing_pts: dictionary containing 'x', 'y_le', and 'y_te' entries,
+            which contain arrays of coordinate points defining the leading
+            and trailling edge of the wing.
             y_le: y-coordinates of points along the leading edge
             corresponding with 'x'
             y_te: y-coordinates of points along the trailing edge
@@ -332,12 +324,12 @@ class Wing(object):
         """
         self.mass = mass
 
-        # Generate y-coordinates of the element centers and x-coordinates of
+        # Generate x-coordinates of the element centers and x-coordinates of
         #  the leading and trailing edges of those elements
         self.x_ele, [self.y_le, self.y_te], self.ele_width = \
-            self.interp_elements(x,
-                                 [y_le,
-                                  y_te],
+            self.interp_elements(wing_pts['x'],
+                                 [wing_pts['y_le'],
+                                  wing_pts['y_te']],
                                  n_elements)
 
         # Generate chord lengths of each element
@@ -365,6 +357,14 @@ class Wing(object):
                                          [self.centroid[1]])
         self.chord25 = create_3d_points(self.x_ele, self.chord25)
         self.chord75 = create_3d_points(self.x_ele, self.chord75)
+
+        self.ax_span = wing_axes['span']
+        self.ax_flap = wing_axes['flap']
+        self.ax_sweep = wing_axes['sweep']
+
+        self.flap = None
+        self.sweep = None
+        self.feath = None
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -456,6 +456,21 @@ class Wing(object):
                                 (m * (d_zz ** 2))
 
         return tensor_moi
+
+    def get_q_total(self, t):
+        """Returns resultant quaternion of 3 rotation quaternions.  First gets
+        the resultant quaternion of q_swe*q_fla and rotates the wing axis by
+        that quaternion.  Then gets q_fea, which is a rotation about the wing
+        axis(which is why q_swe*q_fla needs to be calculated first).  The gets
+        resultant quaternion q_fea*q_swe*q_fla.
+        """
+        q_flap = pq.Quaternion(axis=self.ax_flap, angle=self.flap.a(t))
+        q_sweep = pq.Quaternion(axis=self.ax_sweep, angle=self.sweep.a(t))
+        q_swe_fla = q_sweep.__mul__(q_flap)
+        wa_rot = q_swe_fla.rotate(self.ax_span)
+        q_fea = pq.Quaternion(axis=wa_rot, angle=self.feath.a(t))
+        q_tot = q_fea.__mul__(q_swe_fla)
+        return q_tot
 
 
 class Sinusoid(object):
