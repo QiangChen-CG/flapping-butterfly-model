@@ -15,19 +15,7 @@ def main():
     # Create butterfly object
     bf = build_butterfly()
 
-    # Create angle sinusoidal functions
-    bf.body.wing.flap = Sinusoid(settings.FLA_AMP,
-                                 settings.FLA_MEAN,
-                                 settings.FLA_PHA,
-                                 settings.FREQUENCY)
-    bf.body.wing.sweep = Sinusoid(settings.SWE_AMP,
-                                  settings.SWE_MEAN,
-                                  settings.SWE_PHA,
-                                  settings.FREQUENCY)
-    bf.body.wing.feath = Sinusoid(settings.FEA_AMP,
-                                  settings.FEA_MEAN,
-                                  settings.FEA_PHA,
-                                  settings.FREQUENCY)
+
 
 
 def build_butterfly():
@@ -122,6 +110,10 @@ class Butterfly(object):
         setattr(self.root, name, root)
         setattr(self.quat, name, self.get_quaternion(self.unit_vecs,
                                                      part_unit_vecs))
+
+    def get_com(self, t):
+        """DOCSTRING"""
+
 
     @staticmethod
     def get_quaternion(lst1, lst2, matchlist=None):
