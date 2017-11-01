@@ -22,6 +22,10 @@ To-do:
      outside class?
      - Wing angles -> correction rotate? (Negative vs. positive for some
      angles?)
+     - Limit docstring and comment lines to 72 characters(all lines set at 79
+     currently
+     - In documentation, make sure parameters/variables/outputs etc are
+     properly identified as correct type(e.g. as a list or array)
 
 - buildButterfly.py
     - Docstring

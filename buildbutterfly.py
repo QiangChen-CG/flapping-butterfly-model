@@ -16,8 +16,6 @@ def main():
     bf = build_butterfly()
 
 
-
-
 def build_butterfly():
     bf = Butterfly(settings.BODY_FRAME_UNIT_VECS)
     head = BodySphere(settings.HEAD_MASS,
@@ -113,7 +111,6 @@ class Butterfly(object):
 
     def get_com(self, t):
         """DOCSTRING"""
-
 
     @staticmethod
     def get_quaternion(lst1, lst2, matchlist=None):
@@ -252,6 +249,15 @@ class BodySphere(object):
         return tensor_moi
 
 
+def get_tangential(w, x_list):
+    """Get tangential velocity/acceleration for a list of position
+    vectors via the cross product w (cross) x"""
+    v_list = []
+    for i, x in enumerate(x_list):
+        v_list.append(np.cross(w, x))
+    return v_list
+
+
 class Wing(object):
     """Define a wing with a mass and shape.  The shape is defined by
     coordinates along the leading and trailing edges.  Modeled as uniform
@@ -358,6 +364,10 @@ class Wing(object):
         self.sweep = None
         self.feath = None
 
+        # 't' class containing values calculated at time step 't'.  Cleared at
+        # the end of each time step.
+        self.t = SimpleNamespace()
+
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
         """Takes 1-D x array and N-D y arrays corresponding to points along
@@ -459,10 +469,28 @@ class Wing(object):
         q_flap = pq.Quaternion(axis=self.ax_flap, angle=self.flap.a(t))
         q_sweep = pq.Quaternion(axis=self.ax_sweep, angle=self.sweep.a(t))
         q_swe_fla = q_sweep.__mul__(q_flap)
-        wa_rot = q_swe_fla.rotate(self.ax_span)
-        q_fea = pq.Quaternion(axis=wa_rot, angle=self.feath.a(t))
-        q_tot = q_fea.__mul__(q_swe_fla)
-        return q_tot
+        self.t.ax_span = q_swe_fla.rotate(self.ax_span)
+        q_fea = pq.Quaternion(axis=self.t.ax_span, angle=self.feath.a(t))
+        self.t.q_tot = q_fea.__mul__(q_swe_fla)
+
+    def get_rot_vecs(self, t, w_vel, w_acc):
+        """Calculates total rotational velocity and acceleration of the wing
+        at time 't'.  Determines components from the motions of the wings in
+        the wing frame, as well as the rotational velocity/acceleration of
+        the wing frame itself"""
+        self.t.rot_vel = (self.ax_flap * self.flap.da_dt(t) +
+                          self.ax_sweep * self.sweep.da_dt(t) +
+                          self.t.ax_span * self.feath.da_dt(t) +
+                          w_vel)
+
+        self.t.rot_acc = (self.ax_flap * self.flap.d2a_dt2(t) +
+                          self.ax_sweep * self.sweep.d2a_dt2(t) +
+                          self.t.ax_span * self.feath.d2a_dt2(t) +
+                          w_acc)
+
+    def clear_time_variants(self):
+        """"""
+        pass
 
 
 class Sinusoid(object):
