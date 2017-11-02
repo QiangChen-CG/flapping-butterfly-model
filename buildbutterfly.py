@@ -473,20 +473,28 @@ class Wing(object):
         q_fea = pq.Quaternion(axis=self.t.ax_span, angle=self.feath.a(t))
         self.t.q_tot = q_fea.__mul__(q_swe_fla)
 
-    def get_rot_vecs(self, t, w_vel, w_acc):
+    def get_rot_vecs(self, t):
         """Calculates total rotational velocity and acceleration of the wing
         at time 't'.  Determines components from the motions of the wings in
         the wing frame, as well as the rotational velocity/acceleration of
         the wing frame itself"""
         self.t.rot_vel = (self.ax_flap * self.flap.da_dt(t) +
                           self.ax_sweep * self.sweep.da_dt(t) +
-                          self.t.ax_span * self.feath.da_dt(t) +
-                          w_vel)
+                          self.t.ax_span * self.feath.da_dt(t))
 
         self.t.rot_acc = (self.ax_flap * self.flap.d2a_dt2(t) +
                           self.ax_sweep * self.sweep.d2a_dt2(t) +
-                          self.t.ax_span * self.feath.d2a_dt2(t) +
-                          w_acc)
+                          self.t.ax_span * self.feath.d2a_dt2(t))
+        return
+
+
+    def get_wing_force(self, t, v_frame, w_vel_frame, w_acc_frame):
+        """DOCSTRING"""
+
+        self.t.v_ele = get_tangential((self.get_rot_vecs(t) + w_vel_frame),
+                                      self.midchord)
+
+
 
     def clear_time_variants(self):
         """"""
