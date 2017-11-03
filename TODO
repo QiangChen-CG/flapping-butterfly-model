@@ -1,5 +1,5 @@
 To-do:
-- Overall
+- Overall:
     - Move functions and modules around to create clean repository once
     structure is more defined
     - Unit tests?
@@ -26,11 +26,20 @@ To-do:
      currently
      - In documentation, make sure parameters/variables/outputs etc are
      properly identified as correct type(e.g. as a list or array)
+     - In clean-up/refactor, think about the scope of variables used(e.g. what
+     should be defined locally only within functions, and what should be
+     "saved" by defining as a class attribute)
 
-- buildButterfly.py
-    - Docstring
-    - Error handling: more pythonic way to implement parameter checks(e.g.
-    mass>0)?
+- Additions(additional features vs. things to clean up):
+     - Add "wind".  Should be simple addition of velocity vector.
 
-- convertmatfiles.py
-    - Update docstring to clarify what the .mat data is being turned into
+- Questions for people who know better than I do:
+    - Static methods for functions that are only used within the class
+
+Notes & Lessons(potential writeups):
+- In old code, the span, chord, and upper surface vectors were rotated for
+every element at each time step.  Now just rotate them once at each time step,
+as those vectors are the same for every wing element(wing is assumed flat and
+rigid).  Should reduce runtime.
+- Determining aero upper surface and angle of attack based on dot products of
+chord and upper surface vectors w.r.t. the chord plane velocity vector

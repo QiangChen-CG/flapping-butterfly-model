@@ -95,6 +95,15 @@ def rotate_vectors(q, vec):
     return rot_vec
 
 
+def get_tangential(w, x_list):
+    """Get tangential velocity/acceleration for a list of position
+    vectors via the cross product w (cross) x"""
+    v_list = []
+    for i, x in enumerate(x_list):
+        v_list.append(np.cross(w, x))
+    return v_list
+
+
 class Butterfly(object):
     def __init__(self, body_unit_vecs):
         self.unit_vecs = body_unit_vecs
@@ -249,15 +258,6 @@ class BodySphere(object):
         return tensor_moi
 
 
-def get_tangential(w, x_list):
-    """Get tangential velocity/acceleration for a list of position
-    vectors via the cross product w (cross) x"""
-    v_list = []
-    for i, x in enumerate(x_list):
-        v_list.append(np.cross(w, x))
-    return v_list
-
-
 class Wing(object):
     """Define a wing with a mass and shape.  The shape is defined by
     coordinates along the leading and trailing edges.  Modeled as uniform
@@ -356,9 +356,13 @@ class Wing(object):
         self.chord25 = create_3d_points(self.x_ele, self.chord25)
         self.chord75 = create_3d_points(self.x_ele, self.chord75)
 
-        self.ax_span = wing_axes['span']
         self.ax_flap = wing_axes['flap']
         self.ax_sweep = wing_axes['sweep']
+        self.ax_feath = wing_axes['feath']
+
+        self.ax_span = wing_axes['span']
+        self.ax_chord = wing_axes['chord']
+        self.ax_up_surf = wing_axes['up_surf']
 
         self.flap = None
         self.sweep = None
@@ -469,8 +473,8 @@ class Wing(object):
         q_flap = pq.Quaternion(axis=self.ax_flap, angle=self.flap.a(t))
         q_sweep = pq.Quaternion(axis=self.ax_sweep, angle=self.sweep.a(t))
         q_swe_fla = q_sweep.__mul__(q_flap)
-        self.t.ax_span = q_swe_fla.rotate(self.ax_span)
-        q_fea = pq.Quaternion(axis=self.t.ax_span, angle=self.feath.a(t))
+        ax_feath = q_swe_fla.rotate(self.ax_span)
+        q_fea = pq.Quaternion(axis=ax_feath, angle=self.feath.a(t))
         self.t.q_tot = q_fea.__mul__(q_swe_fla)
 
     def get_rot_vecs(self, t):
@@ -492,7 +496,45 @@ class Wing(object):
         """DOCSTRING"""
 
         self.t.v_ele = get_tangential((self.get_rot_vecs(t) + w_vel_frame),
-                                      self.midchord)
+                                      self.midchord) + v_frame
+        # get angle of attack
+        self.get_aoa()
+        # get force vector
+        # sum force vectors
+        return
+
+
+    def get_aoa(self):
+        """Get angle of attack for each wing element.  Also determine the
+        aerodynamic upper surface based on relative velocity vector(
+        aerodynamic upper surface can be different than morphological upper
+        surface if the AoA is 'negative'.
+        """
+
+        # rotate wing axes
+        self.t.ax_span = rotate_vectors(self.t.q_tot, self.ax_span)
+        self.t.ax_chord = rotate_vectors(self.t.q_tot, self.ax_chord)
+        self.t.ax_up_surf = rotate_vectors(self.t.q_tot, self.ax_up_surf)
+
+        # get velocity components in chord plane(span axis = chord plane
+        # normal).
+        v_proj = []
+        for i, vel in enumerate(self.t.v_ele):
+            v_proj.append(vel -
+                          (np.multiply(np.dot(vel, self.t.ax_span),
+                                       self.t.ax_span)))
+
+        # get angle of attack and determine direction of aerodynamic upper
+        # surface (EXPAND HERE TO EXPLAIN)
+        self.t.aoa = []
+        self.t.aero_up_surf = []
+        for i, vel in enumerate(v_proj):
+            self.t.aoa.append(np.dot(np.linalg.norm(vel), self.t.ax_chord))
+            flip = -np.sign(np.dot(np.linalg.norm(vel), self.t.ax_up_surf))
+            self.t.aero_up_surf.append(np.multiply(flip, self.t.ax_up_surf))
+        return
+
+
 
 
 
