@@ -3,6 +3,18 @@ SETTINGS DOCSTRING
 """
 import numpy as np
 
+
+"""Environmental variables
+
+EXPAND HERE
+
+"""
+
+FLUID_DENSITY = 1
+
+GRAVITY = [0, -9.81, 0]
+
+
 """Tree Nymph
 
 Info about tree nymph, where data comes from, etc etc...
@@ -246,3 +258,33 @@ ABD_PHASE = 3.3386
 
 # Wingbeat frequency (abdomen flaps at same frequency)
 FREQUENCY = 9.2572
+
+"""REWRITE AND ADD INFO ABOUT DISCONTINUITY
+
+Scaling factor for the hyperbolic tangent function that is used in
+determining the location of the force vectors on the wing elements as the
+angle of attack approaches 90deg.  A larger factor will lead to a more
+abrupt transition from the 25% chordline to the 75% chordline, where a
+smaller factor will have a smoother transition.  
+
+The chosen factor of 10 has the force vector location make the transition from 
+about 60deg to 120deg.
+"""
+TANH_FACTOR = 10
+
+"""REVISIT LATER - IS THIS ONLY USED IN C_T FUNCTION OR ELSEWHERE? HAVE 
+COMMENT REFLECT THAT
+
+Scaling factor for the decaying exponential function added to translational 
+force coefficient equation.  This decaying exponential smoothly brings the 
+coefficient to zero at an angle of attack of zero.  This is done to prevent 
+a discontinuity when the angle of attack goes negative and the direction of 
+the force vector is immediately inverted.  Large values should be chosen so 
+as to only change the function significantly near zero, but not large enough 
+to effectively make the function continuous to zero.
+"""
+
+EXP_FACTOR = 40
+
+# Rotational force coefficient (ADD SOURCE HERE)
+ROT_FORCE_COEFF = 1.55

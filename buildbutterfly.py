@@ -549,10 +549,35 @@ class Wing(object):
         self.t.chord25 = rotate_vectors(self.t.q_tot, self.chord25)
         self.t.chord75 = rotate_vectors(self.t.q_tot, self.chord75)
 
-        tanh_scale = settings.TANH_SCALE
+        tanh_scale = settings.TANH_FACTOR
         a = 0.5 * (1 - np.tanh(tanh_scale * (self.t.aoa - np.pi / 2)))
         self.t.force_loc = a * self.t.chord25 + (1 - a) * self.t.chord75
         return
+
+
+    def get_force_coeff(self):
+        """DOCSTRING"""
+
+        # Translational force coefficient
+        self.t.aoa = 1
+        exp_factor = settings.EXP_FACTOR
+        cl = 1.5 * np.sin(2 * self.t.aoa - 0.06) + \
+             0.3 * np.cos(self.t.aoa - 0.485) + \
+             0.012
+        cd = 1.4 * np.sin(2 * self.t.aoa - 1.4) + \
+             0.3 * np.cos(self.t.aoa - 1.328) + \
+             1.5
+        ct = np.linalg.norm([cl, cd], axis=0)
+        self.t.ct = ct * (1 - np.exp(- exp_factor * self.t.aoa))
+
+        # Rotational force coefficient
+        self.t.cr = settings.ROT_FORCE_COEFF
+        return
+
+
+    def get_force_mag(self):
+        """DOCSTRING"""
+
 
 
     def clear_time_variants(self):
