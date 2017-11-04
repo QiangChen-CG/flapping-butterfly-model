@@ -12,7 +12,6 @@ from types import SimpleNamespace
 
 def main():
     """DOCSTRING HERE"""
-    # Create butterfly object
     bf = build_butterfly()
 
 
@@ -499,7 +498,10 @@ class Wing(object):
                                       self.midchord) + v_frame
         # get angle of attack
         self.get_aoa()
-        # get force vector
+        # get force magnitude
+
+        # get force vectors
+
         # sum force vectors
         return
 
@@ -518,9 +520,9 @@ class Wing(object):
 
         # get velocity components in chord plane(span axis = chord plane
         # normal).
-        v_proj = []
+        self.t.v_proj = []
         for i, vel in enumerate(self.t.v_ele):
-            v_proj.append(vel -
+            self.t.v_proj.append(vel -
                           (np.multiply(np.dot(vel, self.t.ax_span),
                                        self.t.ax_span)))
 
@@ -528,14 +530,29 @@ class Wing(object):
         # surface (EXPAND HERE TO EXPLAIN)
         self.t.aoa = []
         self.t.aero_up_surf = []
-        for i, vel in enumerate(v_proj):
+        for i, vel in enumerate(self.t.v_proj):
             self.t.aoa.append(np.dot(np.linalg.norm(vel), self.t.ax_chord))
             flip = -np.sign(np.dot(np.linalg.norm(vel), self.t.ax_up_surf))
             self.t.aero_up_surf.append(np.multiply(flip, self.t.ax_up_surf))
         return
 
 
+    def get_force_vec(self):
+        """DOCSTRING
 
+        As the location of the force vectors transitions for the 25%
+        chordline to the 75% chordline as the angle of attack crosses 90deg, a
+        hyperbolic tangent function is used to transition between those two
+        locations smoothly.
+
+        """
+        self.t.chord25 = rotate_vectors(self.t.q_tot, self.chord25)
+        self.t.chord75 = rotate_vectors(self.t.q_tot, self.chord75)
+
+        tanh_scale = settings.TANH_SCALE
+        a = 0.5 * (1 - np.tanh(tanh_scale * (self.t.aoa - np.pi / 2)))
+        self.t.force_loc = a * self.t.chord25 + (1 - a) * self.t.chord75
+        return
 
 
     def clear_time_variants(self):
