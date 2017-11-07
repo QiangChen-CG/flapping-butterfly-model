@@ -29,6 +29,9 @@ To-do:
      - In clean-up/refactor, think about the scope of variables used(e.g. what
      should be defined locally only within functions, and what should be
      "saved" by defining as a class attribute)
+     - After Wing and other classes "finished" and all needed outputs
+     determined, go back and decide which variables to define as class
+     attributes, and which should be defined locally within the class
 
 - Additions(additional features vs. things to clean up):
      - Add "wind".  Should be simple addition of velocity vector.

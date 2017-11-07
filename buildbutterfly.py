@@ -1,13 +1,17 @@
+#!/usr/bin/env python
 """
 
 DOCSTRING HERE
 
 """
+from functools import reduce
+from types import SimpleNamespace
+
 import numpy as np
 import pyquaternion as pq
 from scipy import interpolate
+
 import settings
-from types import SimpleNamespace
 
 
 def main():
@@ -329,8 +333,20 @@ class Wing(object):
                                   wing_pts['y_te']],
                                  n_elements)
 
+        # Wing length
+        self.wing_length = wing_pts['x']
+        self.nondim_x = self.x_ele / self.wing_length
+
         # Generate chord lengths of each element
         self.chord_length = self.get_chord_length(self.y_le, self.y_te)
+        self.nondim_chord = self.chord_length / self.wing_length
+
+        # Mean chord, assumes constant element width
+        self.mean_chord = np.mean(self.chord_length)
+
+        # Element area
+        self.ele_area = self.ele_width * self.chord_length
+        self.wing_area = np.sum(self.ele_area)
 
         # Find centers of elements then get centroid for center of mass
         self.midchord = self.get_chord_pos(self.y_le, self.y_te, 0.5)
@@ -347,6 +363,8 @@ class Wing(object):
                                 self.chord_length, mass)
 
         # Convert x and y data in N-by-3 arrays in the wing frame
+        self.wingtip = create_3d_points(wing_pts['x'][-1],
+                                        wing_pts['y_le'][-1])
         self.leading_edge = create_3d_points(self.x_ele, self.y_le)
         self.trailing_edge = create_3d_points(self.x_ele, self.y_te)
         self.midchord = create_3d_points(self.x_ele, self.midchord)
@@ -370,6 +388,59 @@ class Wing(object):
         # 't' class containing values calculated at time step 't'.  Cleared at
         # the end of each time step.
         self.t = SimpleNamespace()
+
+    def time_depend(self, t, rho, v_frame, w_d1_frame, w_d2_frame):
+        """EXPAND
+
+        Aggregates information about the wing at time 't'
+
+        """
+
+        # Get rotation quaternion and rotational velocity/acceleration vectors
+        #  at time 't'
+        self.t.q = self.get_q_total(t)
+        self.t.rot_vel, self.t.rot_acc = self.get_rot_vecs(t)
+
+        # Rotate wing axes
+        self.t.ax_span = rotate_vectors(self.t.q, self.ax_span)
+        self.t.ax_chord = rotate_vectors(self.t.q, self.ax_chord)
+        self.t.ax_up_surf = rotate_vectors(self.t.q, self.ax_up_surf)
+
+        # Rotate wing points
+        self.t.midchord = rotate_vectors(self.t.q_tot, self.midchord)
+        self.t.chord25 = rotate_vectors(self.t.q_tot, self.chord25)
+        self.t.chord75 = rotate_vectors(self.t.q_tot, self.chord75)
+
+        # Get wing element velocities, accounting for velocity and rotation
+        # of the frame
+        self.t.v_ele = get_tangential((self.t.rot_vel + w_d1_frame),
+                                      self.t.midchord) + v_frame
+        self.t.wingtip_vel = get_tangential((self.t.rot_vel + w_d1_frame),
+                                            self.t.midchord) + v_frame
+
+        # Get projected velocity in chord plane
+        self.t.v_proj = self.plane_projection(self.t.v_ele, self.t.ax_span)
+        self.t.wt_vel_proj = self.plane_projection(self.t.wingtip_vel,
+                                                   self.t.ax_span)
+
+        # Get angles of attack and aerodynamic upper surface normals
+        [self.t.aoa, self.t.aero_up_surf] = self.get_aoa(self.t.v_proj,
+                                                         self.t.ax_chord,
+                                                         self.t.ax_up_surf)
+
+        # Get point on wing element where aero force acts
+        self.t.force_loc = self.get_force_loc(self.t.aoa,
+                                              self.t.chord25,
+                                              self.t.chord75,
+                                              settings.TANH_FACTOR)
+
+        # Get magnitudes of aerodynamic forces
+        self.f_trans = self.get_force_trans(rho,
+                                            self.t.aoa,
+                                            self.t.v_proj)
+        self.f_rot = self.get_force_rot(rho, t)
+        self.f_add = self.get_force_added(rho, t,
+                                          self.t.rot_vel, self.t.rot_acc)
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -474,30 +545,39 @@ class Wing(object):
         q_swe_fla = q_sweep.__mul__(q_flap)
         ax_feath = q_swe_fla.rotate(self.ax_span)
         q_fea = pq.Quaternion(axis=ax_feath, angle=self.feath.a(t))
-        self.t.q_tot = q_fea.__mul__(q_swe_fla)
+
+        return q_fea.__mul__(q_swe_fla)
 
     def get_rot_vecs(self, t):
         """Calculates total rotational velocity and acceleration of the wing
         at time 't'.  Determines components from the motions of the wings in
         the wing frame, as well as the rotational velocity/acceleration of
         the wing frame itself"""
-        self.t.rot_vel = (self.ax_flap * self.flap.da_dt(t) +
-                          self.ax_sweep * self.sweep.da_dt(t) +
-                          self.t.ax_span * self.feath.da_dt(t))
+        rot_vel = (self.ax_flap * self.flap.da_dt(t) +
+                   self.ax_sweep * self.sweep.da_dt(t) +
+                   self.t.ax_span * self.feath.da_dt(t))
 
-        self.t.rot_acc = (self.ax_flap * self.flap.d2a_dt2(t) +
-                          self.ax_sweep * self.sweep.d2a_dt2(t) +
-                          self.t.ax_span * self.feath.d2a_dt2(t))
-        return
+        rot_acc = (self.ax_flap * self.flap.d2a_dt2(t) +
+                   self.ax_sweep * self.sweep.d2a_dt2(t) +
+                   self.t.ax_span * self.feath.d2a_dt2(t))
+        return rot_vel, rot_acc
 
+    @staticmethod
+    def plane_projection(vectors, plane_norm):
+        """DOCSTRING"""
+        proj = []
+        for vec in vectors:
+            proj.append(vec -
+                        (np.multiply(np.dot(vec, plane_norm),
+                                     plane_norm)))
+        return proj
 
     def get_wing_force(self, t, v_frame, w_vel_frame, w_acc_frame):
         """DOCSTRING"""
 
-        self.t.v_ele = get_tangential((self.get_rot_vecs(t) + w_vel_frame),
-                                      self.midchord) + v_frame
         # get angle of attack
-        self.get_aoa()
+
+
         # get force magnitude
 
         # get force vectors
@@ -505,39 +585,25 @@ class Wing(object):
         # sum force vectors
         return
 
-
-    def get_aoa(self):
+    @staticmethod
+    def get_aoa(v_proj, chord_axis, up_surf_norm):
         """Get angle of attack for each wing element.  Also determine the
         aerodynamic upper surface based on relative velocity vector(
         aerodynamic upper surface can be different than morphological upper
         surface if the AoA is 'negative'.
         """
 
-        # rotate wing axes
-        self.t.ax_span = rotate_vectors(self.t.q_tot, self.ax_span)
-        self.t.ax_chord = rotate_vectors(self.t.q_tot, self.ax_chord)
-        self.t.ax_up_surf = rotate_vectors(self.t.q_tot, self.ax_up_surf)
-
-        # get velocity components in chord plane(span axis = chord plane
-        # normal).
-        self.t.v_proj = []
-        for i, vel in enumerate(self.t.v_ele):
-            self.t.v_proj.append(vel -
-                          (np.multiply(np.dot(vel, self.t.ax_span),
-                                       self.t.ax_span)))
-
         # get angle of attack and determine direction of aerodynamic upper
         # surface (EXPAND HERE TO EXPLAIN)
-        self.t.aoa = []
-        self.t.aero_up_surf = []
-        for i, vel in enumerate(self.t.v_proj):
-            self.t.aoa.append(np.dot(np.linalg.norm(vel), self.t.ax_chord))
-            flip = -np.sign(np.dot(np.linalg.norm(vel), self.t.ax_up_surf))
-            self.t.aero_up_surf.append(np.multiply(flip, self.t.ax_up_surf))
-        return
+        aoa = []
+        aero_up_surf = []
+        for vel in v_proj:
+            aoa.append(np.dot(np.linalg.norm(vel), chord_axis))
+            flip = -np.sign(np.dot(np.linalg.norm(vel), up_surf_norm))
+            aero_up_surf.append(np.multiply(flip, up_surf_norm))
+        return [aoa, aero_up_surf]
 
-
-    def get_force_vec(self):
+    def get_force_loc(self, aoa, chord25, chord75, tanh_scale):
         """DOCSTRING
 
         As the location of the force vectors transitions for the 25%
@@ -546,39 +612,75 @@ class Wing(object):
         locations smoothly.
 
         """
-        self.t.chord25 = rotate_vectors(self.t.q_tot, self.chord25)
-        self.t.chord75 = rotate_vectors(self.t.q_tot, self.chord75)
 
-        tanh_scale = settings.TANH_FACTOR
-        a = 0.5 * (1 - np.tanh(tanh_scale * (self.t.aoa - np.pi / 2)))
-        self.t.force_loc = a * self.t.chord25 + (1 - a) * self.t.chord75
-        return
+        a = 0.5 * (1 - np.tanh(tanh_scale * (aoa - np.pi / 2)))
+        force_loc = a * chord25 + (1 - a) * chord75
+        return force_loc
 
-
-    def get_force_coeff(self):
+    def get_force_trans(self, rho, aoa, v_proj):
         """DOCSTRING"""
 
-        # Translational force coefficient
-        self.t.aoa = 1
         exp_factor = settings.EXP_FACTOR
-        cl = 1.5 * np.sin(2 * self.t.aoa - 0.06) + \
-             0.3 * np.cos(self.t.aoa - 0.485) + \
-             0.012
-        cd = 1.4 * np.sin(2 * self.t.aoa - 1.4) + \
-             0.3 * np.cos(self.t.aoa - 1.328) + \
-             1.5
-        ct = np.linalg.norm([cl, cd], axis=0)
-        self.t.ct = ct * (1 - np.exp(- exp_factor * self.t.aoa))
+        cl = (1.5 * np.sin(2 * aoa - 0.06) +
+              0.3 * np.cos(aoa - 0.485) +
+              0.012)
+        cd = (1.4 * np.sin(2 * aoa - 1.4) +
+              0.3 * np.cos(aoa - 1.328) +
+              1.5)
+        c_t = np.linalg.norm([cl, cd], axis=0)
+        c_t = c_t * (1 - np.exp(- exp_factor * aoa))
 
-        # Rotational force coefficient
-        self.t.cr = settings.ROT_FORCE_COEFF
-        return
+        u_2 = np.square(np.linalg.norm(v_proj, axis=1))
+        x_hat = self.nondim_x
+        c_hat = self.nondim_chord
+        R = self.wing_length
+        c_bar = self.mean_chord
+        dr = self.ele_width
 
+        f_trans = ((0.5 * rho * R* c_bar* dr) *
+                   np.sum(reduce(np.multiply, [c_t, u_2,
+                                               x_hat, c_hat])))
+        return f_trans
 
-    def get_force_mag(self):
+    def get_force_rot(self, rho, t):
         """DOCSTRING"""
 
+        c_rot = settings.ROT_FORCE_COEFF
+        v_wt = self.t.wt_vel_proj
+        a_d1 = self.feath.da_dt(t)
+        c_bar = self.mean_chord
+        R = self.wing_length
+        dr = self.ele_width
+        x_hat = self.nondim_x
+        c_hat = self.nondim_chord
 
+        f_rot = (c_rot * rho * v_wt * a_d1 *
+                 (c_bar ** 2) * R * dr *
+                 np.sum(reduce(np.multiply, [x_hat, c_hat, c_hat])))
+        return f_rot
+
+    def get_force_added(self, rho, t, wing_rot_vel, wing_rot_acc):
+        """DOCSTRING"""
+
+        v_wt = self.t.wt_vel_proj
+        a_d1 = self.feath.da_dt(t)
+        c_bar = self.mean_chord
+        R = self.wing_length
+        dr = self.ele_width
+        x_hat = self.nondim_x
+        c_hat = self.nondim_chord
+        phi_d1 = np.linalg.norm(wing_rot_vel)
+        phi_d2 = np.linalg.norm(wing_rot_acc)
+        a = self.feath.a(t)
+        a_d1 = self.feath.da_dt(t)
+        a_d2 = self.feath.d2a_dt2(t)
+
+        f_add = ((0.25 * rho * (c_bar ** 2) * R* dr) *
+                 (R * (phi_d2 * np.sin(a) + phi_d1 * np.cos(a)) *
+                  np.sum(reduce(np.multiply, [x_hat, c_hat, c_hat]))) +
+                 (0.25 * a_d2 * c_bar *
+                  np.sum(reduce(np.multiply, [c_hat, c_hat]))))
+        return f_add
 
     def clear_time_variants(self):
         """"""
