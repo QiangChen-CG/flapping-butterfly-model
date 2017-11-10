@@ -98,13 +98,14 @@ def rotate_vectors(q, vec):
     return rot_vec
 
 
-def get_tangential(w, x_list):
-    """Get tangential velocity/acceleration for a list of position
-    vectors via the cross product w (cross) x"""
-    v_list = []
-    for i, x in enumerate(x_list):
-        v_list.append(np.cross(w, x))
-    return v_list
+# OBSOLETE - np.cross already can do element wise cross product, REMOVE LATER
+# def get_cross(w, x_list):
+#     """Get tangential velocity/acceleration for a list of position
+#     vectors via the cross product w (cross) x"""
+#     v_list = []
+#     for i, x in enumerate(x_list):
+#         v_list.append(np.cross(w, x))
+#     return v_list
 
 
 class Butterfly(object):
@@ -410,13 +411,14 @@ class Wing(object):
         self.t.midchord = rotate_vectors(self.t.q_tot, self.midchord)
         self.t.chord25 = rotate_vectors(self.t.q_tot, self.chord25)
         self.t.chord75 = rotate_vectors(self.t.q_tot, self.chord75)
+        self.t.wingtip = rotate_vectors(self.t.q_tot, self.wingtip)
 
         # Get wing element velocities, accounting for velocity and rotation
         # of the frame
-        self.t.v_ele = get_tangential((self.t.rot_vel + w_d1_frame),
-                                      self.t.midchord) + v_frame
-        self.t.wingtip_vel = get_tangential((self.t.rot_vel + w_d1_frame),
-                                            self.t.midchord) + v_frame
+        self.t.v_ele = np.cross((self.t.rot_vel + w_d1_frame),
+                                self.t.midchord) + v_frame
+        self.t.v_ele = np.cross((self.t.rot_vel + w_d1_frame),
+                                self.t.wingtip) + v_frame
 
         # Get projected velocity in chord plane
         self.t.v_proj = self.plane_projection(self.t.v_ele, self.t.ax_span)
@@ -434,13 +436,28 @@ class Wing(object):
                                               self.t.chord75,
                                               settings.TANH_FACTOR)
 
-        # Get magnitudes of aerodynamic forces
-        self.f_trans = self.get_force_trans(rho,
-                                            self.t.aoa,
-                                            self.t.v_proj)
-        self.f_rot = self.get_force_rot(rho, t)
-        self.f_add = self.get_force_added(rho, t,
-                                          self.t.rot_vel, self.t.rot_acc)
+        # Get magnitudes of aerodynamic forces per element
+        self.t.f_trans = self.get_force_trans(rho,
+                                              self.t.aoa,
+                                              self.t.v_proj)
+        self.t.f_rot = self.get_force_rot(rho, t)
+        self.t.f_add = self.get_force_added(rho, t,
+                                            self.t.rot_vel, self.t.rot_acc)
+
+        # Get force vectors by summing magnitudes of the aerodynamic forces
+        # and multiplying by the unit vector of the upper surface normal(the
+        #  direction the force is assumed to act)
+        self.t.f_mag = self.t.f_trans + self.t.f_rot + self.t.f_add
+        self.t.f_vec = np.multiply(self.t.f_mag, self.t.force_loc)
+
+        # Get moments on elements by crossing force vectors with the
+        # position vectors of where the forces act
+        self.t.moments = np.cross(self.t.force_loc, self.t.f_vec)
+
+        # Sum element forces and moments to get total force and moment on
+        # the wing
+        self.t.f_total = np.sum(self.t.f_vec)
+        self.t.m_total = np.sum(self.t.moments)
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -572,18 +589,18 @@ class Wing(object):
                                      plane_norm)))
         return proj
 
-    def get_wing_force(self, t, v_frame, w_vel_frame, w_acc_frame):
-        """DOCSTRING"""
-
-        # get angle of attack
-
-
-        # get force magnitude
-
-        # get force vectors
-
-        # sum force vectors
-        return
+    # def get_wing_force(self, t, v_frame, w_vel_frame, w_acc_frame):
+    #     """DOCSTRING"""
+    #
+    #     # get angle of attack
+    #
+    #
+    #     # get force magnitude
+    #
+    #     # get force vectors
+    #
+    #     # sum force vectors
+    #     return
 
     @staticmethod
     def get_aoa(v_proj, chord_axis, up_surf_norm):
@@ -603,7 +620,8 @@ class Wing(object):
             aero_up_surf.append(np.multiply(flip, up_surf_norm))
         return [aoa, aero_up_surf]
 
-    def get_force_loc(self, aoa, chord25, chord75, tanh_scale):
+    @staticmethod
+    def get_force_loc(aoa, chord25, chord75, tanh_scale):
         """DOCSTRING
 
         As the location of the force vectors transitions for the 25%
@@ -633,11 +651,11 @@ class Wing(object):
         u_2 = np.square(np.linalg.norm(v_proj, axis=1))
         x_hat = self.nondim_x
         c_hat = self.nondim_chord
-        R = self.wing_length
+        r = self.wing_length
         c_bar = self.mean_chord
         dr = self.ele_width
 
-        f_trans = ((0.5 * rho * R* c_bar* dr) *
+        f_trans = ((0.5 * rho * r * c_bar * dr) *
                    np.sum(reduce(np.multiply, [c_t, u_2,
                                                x_hat, c_hat])))
         return f_trans
@@ -649,23 +667,21 @@ class Wing(object):
         v_wt = self.t.wt_vel_proj
         a_d1 = self.feath.da_dt(t)
         c_bar = self.mean_chord
-        R = self.wing_length
+        r = self.wing_length
         dr = self.ele_width
         x_hat = self.nondim_x
         c_hat = self.nondim_chord
 
         f_rot = (c_rot * rho * v_wt * a_d1 *
-                 (c_bar ** 2) * R * dr *
+                 (c_bar ** 2) * r * dr *
                  np.sum(reduce(np.multiply, [x_hat, c_hat, c_hat])))
         return f_rot
 
     def get_force_added(self, rho, t, wing_rot_vel, wing_rot_acc):
         """DOCSTRING"""
 
-        v_wt = self.t.wt_vel_proj
-        a_d1 = self.feath.da_dt(t)
         c_bar = self.mean_chord
-        R = self.wing_length
+        r = self.wing_length
         dr = self.ele_width
         x_hat = self.nondim_x
         c_hat = self.nondim_chord
@@ -675,8 +691,8 @@ class Wing(object):
         a_d1 = self.feath.da_dt(t)
         a_d2 = self.feath.d2a_dt2(t)
 
-        f_add = ((0.25 * rho * (c_bar ** 2) * R* dr) *
-                 (R * (phi_d2 * np.sin(a) + phi_d1 * np.cos(a)) *
+        f_add = ((0.25 * rho * (c_bar ** 2) * r * dr) *
+                 (r * (phi_d2 * np.sin(a) + phi_d1 * a_d1 * np.cos(a)) *
                   np.sum(reduce(np.multiply, [x_hat, c_hat, c_hat]))) +
                  (0.25 * a_d2 * c_bar *
                   np.sum(reduce(np.multiply, [c_hat, c_hat]))))
