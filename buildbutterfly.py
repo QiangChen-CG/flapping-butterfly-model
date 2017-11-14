@@ -98,6 +98,16 @@ def rotate_vectors(q, vec):
     return rot_vec
 
 
+def rotate_tensor(q, i):
+    """Rotate a tensor matrix by a rotation quaternion."""
+    r = q.rotation_matrix
+    r_t = r.transpose()
+    i_rot = reduce(np.matmul, [r,
+                               i,
+                               r_t])
+    return i_rot
+
+
 # OBSOLETE - np.cross already can do element wise cross product, REMOVE LATER
 # def get_cross(w, x_list):
 #     """Get tangential velocity/acceleration for a list of position
@@ -282,7 +292,7 @@ class Wing(object):
         ele_width: Width of each individual element.
         chord_length: Chord length(distance from leading to trailing edge) of
         each element.
-        centroid: Centroid(also center of mass, assuming uniform density) of
+        com: Centroid(also center of mass, assuming uniform density) of
         the entire wing.
         chord25: Points on the elements that are 25% of the chord length
         behind the leading edge.  Assumed to be the aerodynamic center where
@@ -351,9 +361,9 @@ class Wing(object):
 
         # Find centers of elements then get centroid for center of mass
         self.midchord = self.get_chord_pos(self.y_le, self.y_te, 0.5)
-        self.centroid = self.find_centroid(np.stack((self.x_ele,
-                                                     self.midchord)),
-                                           self.chord_length)
+        self.com = self.find_centroid(np.stack((self.x_ele,
+                                                self.midchord)),
+                                      self.chord_length)
 
         # Generate y-coordinates for the 25% chordline and 75% chordline
         self.chord25 = self.get_chord_pos(self.y_le, self.y_te, 0.25)
@@ -369,8 +379,8 @@ class Wing(object):
         self.leading_edge = create_3d_points(self.x_ele, self.y_le)
         self.trailing_edge = create_3d_points(self.x_ele, self.y_te)
         self.midchord = create_3d_points(self.x_ele, self.midchord)
-        self.centroid = create_3d_points([self.centroid[0]],
-                                         [self.centroid[1]])
+        self.com = create_3d_points([self.com[0]],
+                                    [self.com[1]])
         self.chord25 = create_3d_points(self.x_ele, self.chord25)
         self.chord75 = create_3d_points(self.x_ele, self.chord75)
 
@@ -390,7 +400,7 @@ class Wing(object):
         # the end of each time step.
         self.t = SimpleNamespace()
 
-    def time_depend(self, t, rho, v_frame, w_d1_frame, w_d2_frame):
+    def time_depend(self, t, rho, v_frame, w_d1_frame):
         """EXPAND
 
         Aggregates information about the wing at time 't'
@@ -458,6 +468,11 @@ class Wing(object):
         # the wing
         self.t.f_total = np.sum(self.t.f_vec)
         self.t.m_total = np.sum(self.t.moments)
+
+        # Rotate moment of inertia tensor and center of mass vector
+        self.t.moi = rotate_tensor(self.t.q, self.moi)
+        self.t.com = rotate_vectors(self.t.q, self.com)
+        return
 
     @staticmethod
     def interp_elements(x, y, n, axis=1, method='linear'):
@@ -588,19 +603,6 @@ class Wing(object):
                         (np.multiply(np.dot(vec, plane_norm),
                                      plane_norm)))
         return proj
-
-    # def get_wing_force(self, t, v_frame, w_vel_frame, w_acc_frame):
-    #     """DOCSTRING"""
-    #
-    #     # get angle of attack
-    #
-    #
-    #     # get force magnitude
-    #
-    #     # get force vectors
-    #
-    #     # sum force vectors
-    #     return
 
     @staticmethod
     def get_aoa(v_proj, chord_axis, up_surf_norm):
